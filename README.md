@@ -1,6 +1,20 @@
-# ExOrg
+# ExOrg (Work in Progress)
 
-**TODO: Add description**
+**Elixir parser for the org-mode markup format**
+
+[Description of the Syntax](https://orgmode.org/worg/dev/org-syntax.html)
+
+## Features
+
+* [x] Text emphasis markup
+* [ ] Image / link syntax
+* [ ] Headings
+* [ ] Lists (ordered, unordered)
+* [ ] Greater blocks / source code blocks
+* [ ] LaTeX
+* [ ] Property drawers & options
+* [ ] Tables
+* [ ] Conversion to html
 
 ## Installation
 
@@ -18,4 +32,3 @@ end
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ex_org](https://hexdocs.pm/ex_org).
-
