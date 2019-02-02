@@ -7,6 +7,7 @@
 ## Features
 
 * [x] Text emphasis markup
+* [x] List items (ordered, unordered)
 * [ ] Image / link syntax
 * [ ] Headings
 * [ ] Lists (ordered, unordered)
