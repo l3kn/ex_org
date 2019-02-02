@@ -1,10 +1,8 @@
 defmodule ExOrg do
   @moduledoc """
   Parser of the org-mode markup language
-  """
-
-  @doc """
-  Quoting from https://orgmode.org/worg/dev/org-syntax.html
+  
+  Quoting from https://orgmode.org/worg/dev/org-syntax.html:
   
   Text markup follows the pattern
   `PRE MARKER CONTENTS MARKER POST`
@@ -31,6 +29,10 @@ defmodule ExOrg do
   or a double quote. It can also be an end of line.
 
   `PRE`, `MARKER`, `CONTENTS`, `MARKER` and `POST` are not spearated by whitespace characters.
+  
+  Notes:
+
+  The “may not span over more than 3 lines” restriction is not handled (yet)
   """
   @pre_re ~s{ \t\(\{'"}
   @post_re ~s{- \t.,:!?;\(\{'\"}
@@ -40,50 +42,65 @@ defmodule ExOrg do
   @whitespace ~s{ |\t|\r?\n}
   @body_re ~s{[\\s\\S]*?}
 
-  @emphasis_re ~r{([#{@pre_re}]|^|#{@newline})(#{@marker_re})(#{@border_forbidden_re}#{@body_re}#{@border_forbidden_re})\2([#{@post_re}]|$|#{@newline})}
+  @emphasis_re ~r{([#{@pre_re}]|^|#{@newline})(#{@marker_re})(#{@border_forbidden_re}#{@body_re}#{@border_forbidden_re})(\2)([#{@post_re}]|$|#{@newline})}
 
-  defp extract_capture(text, {from, to}) do
-    String.slice(text, from..(from + to - 1))
+  defp extract_before_capture(_text, {0, _}), do: ""
+  defp extract_before_capture(text, {from, _}) do
+    String.slice(text, 0..(from - 1))
   end
 
-  defp process_match(text, [_full, pre, emph, body, post]) do
-    {
-      extract_capture(text, pre),
-      extract_capture(text, emph),
-      extract_capture(text, body),
-      extract_capture(text, post),
-    }
+  defp extract_capture(text, {from, len}) do
+    String.slice(text, from..(from + len - 1))
   end
+
+  defp extract_after_capture(text, {from, len}) do
+    String.slice(text, (from + len)..-1)
+  end
+
+  defp emphasis_type("*"), do: :bold
+  defp emphasis_type("/"), do: :italic
+  defp emphasis_type("+"), do: :strikethrough
+  defp emphasis_type("="), do: :verbatim
+  defp emphasis_type("~"), do: :code
+
+  defp process_match(text, [_full, _pre, marker, body, _marker2, _post]) do
+    type =
+      text
+      |> extract_capture(marker)
+      |> emphasis_type()
+    body = extract_capture(text, body)
+
+    # Nested emphasis is not allowed inside verbatim or code blocks
+    if type == :verbatim || type == :code do
+      {:emphasis, [type: type], body}
+    else
+      {:emphasis, [type: type], match_full(body)}
+    end
+  end
+
+  defp promote_single([single]), do: single
+  defp promote_single(multiple), do: multiple
   
-  def match(text) do
-    Regex.run(@emphasis_re, text, return: :index)
-  end
-
   def match_full(text, acc \\ [])
   def match_full("", acc) do
-    acc
+    promote_single(acc)
   end
   def match_full(text, acc) do
-    m = match(text)
-    IO.inspect(m)
-    case m do
-      [{0, a2}, _, _, _, _] -> match_full(
-	String.slice(text, a2..-1),
-	acc ++ [
-	  {:match, process_match(text, m)}
-	] 
-      )
-      [{a1, a2}, _, _, _, _] -> match_full(
-	String.slice(text, (a1+a2)..-1),
-	acc ++ [
-	  {:plain, String.slice(text, 0..(a1-1))},
-	  {:match, process_match(text, m)}
-	] 
-      )
-    nil -> acc ++ [{:plain, text}]
+    match = Regex.run(@emphasis_re, text, return: :index)
+    if match do
+      [_full, _pre, marker, _body, marker2, _post] = match
+      plain_before = extract_before_capture(text, marker)
+      emphasis = process_match(text, match)
+      rest = extract_after_capture(text, marker2)
+
+      # Don't include empty "before" parts
+      if plain_before == "" do
+	match_full(rest, acc ++ [emphasis])
+      else
+	match_full(rest, acc ++ [plain_before, emphasis])
+      end
+    else
+      promote_single(acc ++ [text])
     end
   end
 end
-
-IO.inspect(ExOrg.match_full("*foo*"))
-IO.inspect(ExOrg.match_full("foo *bar* baz +qux+"))
