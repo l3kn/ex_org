@@ -59,10 +59,64 @@ defmodule ExOrg.Lexer do
   
   NOTE: Because asterisks are allowed as bullet,
   this regex must be run _after_ the one for headers
+  
+  TODO: Definition lists are not supported
   """
   @unordered_list_element_re ~r{#{@indentation}(-|\+|\*)\s+(.*)$}
   # TODO: Find a way to do this without nested `?:` words
   @ordered_list_element_re ~r{#{@indentation}((?:[a-zA-z]|\d+)(?:\.|\)))\s+(.*)$}
+
+  @doc """
+  Quoting from https://orgmode.org/worg/dev/org-syntax.html,
+  section "Greater Blocks"
+  
+  Greater blocks consist of the following pattern
+  ```
+  #+BEGIN_NAME PARAMETERS
+  CONTENTS
+  #+END_NAME
+  ```
+  
+  `NAME` can contain any non-whitespace character.
+  `PARAMETERS` can contain any character other than `\n`, and can be ommited.
+  
+  If `NAME` is "CENTER", it will be a "center block".
+  If it is "QUOTE", it will be a "quote block".
+  
+  If the block is neither a center block, a quote block or a block element, it will be a "special block".
+  
+  `CONTENTS` can contain any element, except: a line `#+END_NAME` on its own.
+  Also lines beginning with `STARS` must be quoted by a comma.
+  
+  In the section "Blocks" a few more block types are introduced
+
+  * `COMMENT`, "comment block"
+  * `EXAMPLE`, "example block"
+  * `EXPORT`, "export block"
+  * `SRC`, "source block"
+  * `VERSE`, "verse block"
+  
+  For source and export blocks, `PARAMETERS` can't be ommited.
+  
+  For export blocks, it should be constituted of a single word.
+  
+  For source blocks, it must be of the form `LANGUAGE SWITCHES ARGUMENTS`
+  where `SWITCHES` and `ARGUMENTS` are optional.
+  
+  `LANGUAGE` cannot contain any whitespace character.
+  `SWITCHES` is made of any number of switch patterns, separated by blank lines
+  A switch pattern is either `-l FORMAT` where `FORMAT` can contain any character but a double quote and a new line,
+  `-S` or `-S`, where `S` stands for a single letter.
+  
+  `ARGUMENTS` can contain any character but a new line.
+    
+  TODO: Handle center & quote blocks
+  TODO: Handle comment, example, export, source, verse block
+  TODO: Parse contained org mode elements for verse blocks
+  TODO: Raise error on omission of `PARAMETERS` for source and export blocks
+  """
+  @block_start_re ~r{#{@indentation}\#\+BEGIN_(\S+)( .*)$}
+  @block_end_re ~r{#{@indentation}\#\+END_(\S+)$}
 
   # TODO: Don't run the regex twice
   defp process_line(line) do
@@ -76,6 +130,20 @@ defmodule ExOrg.Lexer do
       Regex.match?(@ordered_list_element_re, line) ->
 	[_full, indent, bullet, body] = Regex.run(@ordered_list_element_re, line)
 	{:unordered_list_element, [indentation: String.length(indent), bullet: bullet], body}
+      Regex.match?(@block_start_re, line) ->
+	[_full, indent, name, body] = Regex.run(@block_start_re, line)
+
+	# Remove the required leading space
+	body =
+	  if String.length(body) > 0 do
+	    String.slice(body, 1..-1)
+	  else
+	    ""
+	  end
+	{:block_start, [indentation: String.length(indent), name: name], body}
+      Regex.match?(@block_end_re, line) ->
+	[_full, indent, name] = Regex.run(@block_end_re, line)
+	{:block_end, [indentation: String.length(indent), name: name], nil}
       true ->
 	{:unknown, nil, line}
     end

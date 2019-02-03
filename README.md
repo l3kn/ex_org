@@ -15,6 +15,7 @@
 * [ ] LaTeX
 * [ ] Property drawers & options
 * [ ] Tables
+* [ ] Definition lists
 * [ ] Conversion to html
 
 ## Installation

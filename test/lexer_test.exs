@@ -45,4 +45,22 @@ defmodule ExOrg.LexerTest do
       assert Lexer.lex(line) == [expected]
     end)
   end
+
+  test "blocks" do
+    input = """
+    #+BEGIN_SRC elixir
+    #+END_SRC
+    """
+    lines = String.split(input, "\n", trim: true)
+
+    expecteds = [
+      {:block_start, [indentation: 0, name: "SRC"], "elixir"},
+      {:block_end, [indentation: 0, name: "SRC"], nil},
+    ]
+
+    Enum.zip(lines, expecteds)
+    |> Enum.each(fn {line, expected} ->
+      assert Lexer.lex(line) == [expected]
+    end)
+  end
 end
